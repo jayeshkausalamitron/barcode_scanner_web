@@ -7,12 +7,13 @@ function App() {
 
   return (
     <div className="App">
-      <div className="button-container">
+      {/* <div className="button-container">
         <button onClick={() => setOpenQr(!openQr)}>
           {openQr ? "Close" : "Open"} QR Scanner
         </button>
-      </div>
-      {openQr && <QrReader />}
+      </div> */}
+      {/* {openQr && <QrReader />} */}
+      <QrReader />
     </div>
   )
 }

@@ -1,3 +1,4 @@
+// src/App.js
 import React, { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import QrScanner from "qr-scanner";
@@ -14,7 +15,7 @@ const QrReader = () => {
   const [quantity, setQuantity] = useState("");
   const [quantityError, setQuantityError] = useState("");
   const [employmentIdError, setEmploymentIdError] = useState("");
-  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [step, setStep] = useState(1); // Step 1: Employment ID, Step 2: QR Scan, Step 3: Quantity
 
   const handleQuantityChange = (event) => {
     setQuantity(event.target.value);
@@ -29,24 +30,30 @@ const QrReader = () => {
   const onScanSuccess = (result) => {
     console.log(result);
     setScannedResult(result?.data);
+    setStep(3); // Proceed to step 3 after successful scan
+    scanner.current.stop(); // Stop scanner after successful scan
   };
 
   const onScanFail = (err) => {
     console.log(err);
   };
 
-  const handleSubmit = async (event) => {
+  const handleEmploymentIdSubmit = (event) => {
     event.preventDefault();
+    if (employmentId) {
+      setEmploymentIdError("");
+      setStep(2); // Proceed to step 2: QR Scan
+      setQrOn(true);
+    } else {
+      setEmploymentIdError("Employment ID is required");
+    }
+  };
 
+  const handleQuantitySubmit = async (event) => {
+    event.preventDefault();
     let isValid = true;
 
     if (!scannedResult) {
-      setScannedResult("Barcode is required");
-      isValid = false;
-    }
-
-    if (!employmentId) {
-      setEmploymentIdError("Employment ID is required");
       isValid = false;
     }
 
@@ -56,9 +63,8 @@ const QrReader = () => {
     }
 
     if (isValid) {
-      console.log({ scannedResult, employmentId, quantity });
       try {
-        const response = await axios.post("https://173.161.60.88:54322/submit-form", {
+        const response = await axios.post("/submit-form", {
           scannedResult,
           employmentId,
           quantity,
@@ -69,7 +75,8 @@ const QrReader = () => {
         setEmploymentId("");
         setQuantity("");
         setScannedResult("");
-        setShowSuccessPopup(true);
+        setStep(1); // Reset to step 1
+        alert("Your Inventory has been successfully tracked!");
       } catch (error) {
         console.error("Error submitting form:", error);
       }
@@ -77,17 +84,17 @@ const QrReader = () => {
   };
 
   useEffect(() => {
-    if (qrOn && videoEl?.current && !scanner.current) {
-      scanner.current = new QrScanner(videoEl?.current, onScanSuccess, {
+    if (videoEl?.current && step === 2) {
+      scanner.current = new QrScanner(videoEl.current, onScanSuccess, {
         onDecodeError: onScanFail,
         preferredCamera: "environment",
         highlightScanRegion: true,
         highlightCodeOutline: true,
-        overlay: qrBoxEl?.current || undefined,
+        overlay: qrBoxEl.current || undefined,
       });
 
-      scanner?.current
-        ?.start()
+      scanner.current
+        .start()
         .then(() => setQrOn(true))
         .catch((err) => {
           if (err) setQrOn(false);
@@ -97,79 +104,104 @@ const QrReader = () => {
     return () => {
       if (scanner.current) {
         scanner.current.stop();
-        scanner.current = null;
       }
     };
-  }, [qrOn]);
+  }, [step]);
 
   useEffect(() => {
-    if (!qrOn && scanner.current) {
-      scanner.current.stop();
-      scanner.current = null;
+    if (!qrOn && step === 2) {
+      alert(
+        "Camera is blocked or not accessible. Please allow camera in your browser permissions and Reload."
+      );
     }
-  }, [qrOn]);
+  }, [qrOn, step]);
 
   return (
-    <div className="container">
+    <div className="container mt-5 text-center">
       <h2>QR Code Scanner and Form</h2>
-      {!employmentId && (
-        <div className="alert alert-warning">
-          Please enter your Employment ID to enable the QR scanner.
-        </div>
-      )}
-      {employmentId && (
-        <div className="qr-reader">
-          <video ref={videoEl}></video>
 
-          {scannedResult && (
-            <p className="scanned-result">
-              Scanned Value: {scannedResult}
-            </p>
-          )}
+      {step === 1 && (
+        <form onSubmit={handleEmploymentIdSubmit} className="mb-3">
+          <div className="mb-3">
+            <div>
+              <label htmlFor="employmentId" className="form-label">
+                <b>Employment ID</b>
+              </label>
+            </div>
+            <input
+              type="text"
+              id="employmentId"
+              value={employmentId}
+              onChange={handleEmploymentIdChange}
+              className={`form-control ${
+                employmentIdError ? "is-invalid" : ""
+              }`}
+              placeholder="Enter Employment ID..."
+              required
+            />
+            {employmentIdError && (
+              <div className="invalid-feedback">{employmentIdError}</div>
+            )}
+          </div>
+          <button type="submit" className="btn btn-primary">
+            Submit
+          </button>
+        </form>
+      )}
+
+      {step === 2 && (
+        <div className="qr-reader mb-3 position-relative">
+          <div>
+              <label htmlFor="employmentId" className="form-label">
+                <b>Employment ID : {employmentId}</b>
+              </label>
+            </div>
+          <video ref={videoEl} className="w-100" playsInline></video>
+          <div
+            ref={qrBoxEl}
+            className="qr-box position-absolute top-50 start-50 translate-middle"
+          >
+            <img
+              src={QrFrame}
+              alt="QR Frame"
+              width={128}
+              height={128}
+              className="qr-frame"
+            />
+          </div>
         </div>
       )}
-      <form onSubmit={handleSubmit}>
-        <div className="mb-3">
-          <input
-            type="text"
-            id="employmentId"
-            value={employmentId}
-            onChange={handleEmploymentIdChange}
-            className={`form-control ${employmentIdError ? "is-invalid" : ""}`}
-            placeholder="Enter Employment ID..."
-            onBlur={() => setQrOn(!!employmentId)}
-          />
-          {employmentIdError && (
-            <div className="invalid-feedback">{employmentIdError}</div>
-          )}
-        </div>
-        {employmentId && (
-          <>
-            <div className="mb-3">
-              <input
-                type="text"
-                id="quantity"
-                value={quantity}
-                onChange={handleQuantityChange}
-                className={`form-control ${quantityError ? "is-invalid" : ""}`}
-                placeholder="Enter Quantity..."
-              />
-              {quantityError && (
-                <div className="invalid-feedback">{quantityError}</div>
-              )}
+
+      {step === 3 && (
+        <form onSubmit={handleQuantitySubmit} className="mb-3">
+          <div className="mb-3">
+          <div>
+              <label htmlFor="employmentId" className="form-label">
+                <b>Employment ID : {employmentId}</b>
+              </label>
             </div>
-            <div className="mb-3">
-              <button type="submit" className="btn btn-warning">
-                Submit
-              </button>
+            <div>
+              <label htmlFor="qrCodeScanner" className="form-label">
+                <b>QR Code Scanner : {scannedResult}</b>
+              </label>
             </div>
-          </>
-        )}
-      </form>
-      {showSuccessPopup && (
-        <div className="success-popup">
-          Your Inventory has been successfully tracked!
-        </div>
+            <input
+              type="text"
+              id="quantity"
+              value={quantity}
+              onChange={handleQuantityChange}
+              className={`form-control ${quantityError ? "is-invalid" : ""}`}
+              placeholder="Enter Quantity..."
+              required
+            />
+            {quantityError && (
+              <div className="invalid-feedback">{quantityError}</div>
+            )}
+          </div>
+          <button type="submit" className="btn btn-primary">
+            Submit Quantity
+          </button>
+        </form>
       )}
     </div>
   );
