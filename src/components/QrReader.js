@@ -3,7 +3,8 @@ import React, { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import QrScanner from "qr-scanner";
 import QrFrame from "../assets/qr-frame.svg";
-import "./QrStyles.css";
+import 'bootstrap/dist/css/bootstrap.min.css';
+import './QrStyles.css';
 
 const QrReader = () => {
   const scanner = useRef();
@@ -16,6 +17,8 @@ const QrReader = () => {
   const [quantityError, setQuantityError] = useState("");
   const [employmentIdError, setEmploymentIdError] = useState("");
   const [step, setStep] = useState(1); // Step 1: Employment ID, Step 2: QR Scan, Step 3: Quantity
+  const [alertMessage, setAlertMessage] = useState("");
+  const [alertType, setAlertType] = useState(""); // success, error, loading
 
   const handleQuantityChange = (event) => {
     setQuantity(event.target.value);
@@ -40,7 +43,7 @@ const QrReader = () => {
 
   const handleEmploymentIdSubmit = (event) => {
     event.preventDefault();
-    if (employmentId) {
+    if (employmentId.trim()) {
       setEmploymentIdError("");
       setStep(2); // Proceed to step 2: QR Scan
       setQrOn(true);
@@ -57,13 +60,15 @@ const QrReader = () => {
       isValid = false;
     }
 
-    if (!quantity) {
+    if (!quantity.trim()) {
       setQuantityError("Quantity is required");
       isValid = false;
     }
 
     if (isValid) {
       try {
+        setAlertMessage("Submitting your data...");
+        setAlertType("loading");
         const response = await axios.post("/submit-form", {
           scannedResult,
           employmentId,
@@ -76,9 +81,13 @@ const QrReader = () => {
         setQuantity("");
         setScannedResult("");
         setStep(1); // Reset to step 1
-        alert("Your Inventory has been successfully tracked!");
+        setAlertMessage("Your Inventory has been successfully tracked!");
+        setAlertType("success");
+        setTimeout(() => setAlertMessage(""), 3000); // Clear success message after 3 seconds
       } catch (error) {
         console.error("Error submitting form:", error);
+        setAlertMessage("Error submitting form. Please try again.");
+        setAlertType("error");
       }
     }
   };
@@ -152,10 +161,10 @@ const QrReader = () => {
       {step === 2 && (
         <div className="qr-reader mb-3 position-relative">
           <div>
-              <label htmlFor="employmentId" className="form-label">
-                <b>Employment ID : {employmentId}</b>
-              </label>
-            </div>
+            <label htmlFor="employmentId" className="form-label">
+              <b>Employment ID: {employmentId}</b>
+            </label>
+          </div>
           <video ref={videoEl} className="w-100" playsInline></video>
           <div
             ref={qrBoxEl}
@@ -175,14 +184,14 @@ const QrReader = () => {
       {step === 3 && (
         <form onSubmit={handleQuantitySubmit} className="mb-3">
           <div className="mb-3">
-          <div>
+            <div>
               <label htmlFor="employmentId" className="form-label">
-                <b>Employment ID : {employmentId}</b>
+                <b>Employment ID: {employmentId}</b>
               </label>
             </div>
             <div>
               <label htmlFor="qrCodeScanner" className="form-label">
-                <b>QR Code Scanner : {scannedResult}</b>
+                <b>QR Code: {scannedResult}</b>
               </label>
             </div>
             <input
@@ -202,6 +211,12 @@ const QrReader = () => {
             Submit Quantity
           </button>
         </form>
+      )}
+
+      {alertMessage && (
+        <div className={`alert mt-3 alert-${alertType === "loading" ? "info" : alertType === "success" ? "success" : "danger"}`}>
+          {alertMessage}
+        </div>
       )}
     </div>
   );
